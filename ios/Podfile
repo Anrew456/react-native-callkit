@@ -17,6 +17,10 @@ end
 target 'LiveKitCallKitExample' do
   config = use_native_modules!
 
+  # Local LiveKit pods for development
+  pod 'livekit-react-native', :path => '../../../livekit/client-sdk-react-native'
+  pod 'livekit-react-native-webrtc', :path => '../../../livekit/react-native-webrtc'
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
