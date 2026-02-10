@@ -1,97 +1,78 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# LiveKit React-Native CallKit Example
 
-# Getting Started
+React Native example showing CallKit (iOS) and ConnectionService (Android) integration with LiveKit using [react-native-callkeep](https://github.com/livekit/react-native-callkeep).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## What it does
 
-## Step 1: Start Metro
+- Outgoing calls via `RNCallKeep.startCall`
+- Simulated incoming calls via `RNCallKeep.displayIncomingCall`
+- VoIP push token display (PushKit, iOS only)
+- Audio session managed by LiveKit's `AudioDeviceModule`, not by CallKeep (`manageAudioSession: false`)
+- Mute/unmute via CallKit UI
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Project structure
 
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+index.js              registerGlobals, CallManager bootstrap
+App.tsx               Navigation shell
+src/
+  CallManager.ts      Singleton: CallKeep setup, LiveKit room, PushKit listeners
+  types.ts            CallState type
+  screens/
+    HomeScreen.tsx    UI: state display, URL/token input, call controls
+ios/
+  LiveKitCallKitExample/
+    AppDelegate.swift
+    PushKitManager.{h,m}    Native module for VoIP push tokens
+    LiveKitCallKitExample.entitlements
 ```
 
-## Step 2: Build and run your app
+## Prerequisites
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+- Node >= 20
+- Xcode (iOS)
+- Android Studio (Android)
+- [React Native environment setup](https://reactnative.dev/docs/set-up-your-environment)
 
-### Android
+## Setup
 
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npm install
 ```
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
 ```sh
 bundle install
+cd ios && bundle exec pod install && cd ..
 ```
 
-Then, and every time you update your native dependencies, run:
+Open `ios/LiveKitCallKitExample.xcworkspace` in Xcode. You will need to set a development team and enable the following capabilities:
+
+- **Background Modes**: Voice over IP, Remote notifications
+- **Push Notifications**
+
+Then run:
 
 ```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+> CallKit does not work in the iOS Simulator. Use a physical device.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### Android
 
-## Step 3: Modify your app
+```sh
+npm run android
+```
 
-Now that you have successfully run the app, let's make changes!
+## Usage
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+1. Enter a LiveKit server URL and access token.
+2. **Start call** initiates an outgoing call and connects to the room.
+3. **Simulate incoming call** shows the native call UI without a real push.
+4. Use the native call UI to end or mute the call.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Audio session handling
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+CallKeep is configured with `manageAudioSession: false` so it does not touch `AVAudioSession`. Instead, when CallKit activates the audio session, the app configures it via `AudioSession.setAppleAudioConfiguration` and then enables the audio engine with `AudioDeviceModule.setEngineAvailability`. This matches the pattern from the [Swift CallKit example](https://github.com/livekit/client-sdk-swift/tree/main/Examples/CallKit).
