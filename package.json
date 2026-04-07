@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "preios": "cd ../../livekit/client-sdk-react-native && yarn exec bob build --target commonjs && yarn exec bob build --target module",
     "ios": "react-native run-ios",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"App.tsx\" \"index.js\" \"metro.config.js\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"App.tsx\" \"index.js\" \"metro.config.js\"",
