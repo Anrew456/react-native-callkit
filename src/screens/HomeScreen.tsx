@@ -6,15 +6,16 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import {
-  Alert,
   Clipboard,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConnectionState } from 'livekit-client';
 import CallManager from '../CallManager';
 import type { CallState } from '../types';
@@ -29,6 +30,35 @@ type Snapshot = {
   token: string;
   hasActiveCall: boolean;
   roomConnectionState: ConnectionState;
+};
+
+const colors = {
+  light: {
+    background: '#F2F2F7',
+    section: '#FFFFFF',
+    text: '#000000',
+    secondaryText: '#8E8E93',
+    sectionHeader: '#6D6D72',
+    separator: '#C6C6C8',
+    link: '#007AFF',
+    destructive: '#FF3B30',
+    toastBackground: '#FFFFFF',
+    shadow: '#000000',
+    caller: '#5856D6',
+  },
+  dark: {
+    background: '#000000',
+    section: '#1C1C1E',
+    text: '#FFFFFF',
+    secondaryText: '#8E8E93',
+    sectionHeader: '#98989D',
+    separator: '#38383A',
+    link: '#0A84FF',
+    destructive: '#FF453A',
+    toastBackground: '#2C2C2E',
+    shadow: '#000000',
+    caller: '#BF5AF2',
+  },
 };
 
 function useCallManager() {
@@ -75,6 +105,8 @@ export default function HomeScreen() {
   const state = useCallManager();
   const manager = CallManager.shared;
   const [showToast, setShowToast] = useState(false);
+  const isDarkMode = useColorScheme() === 'dark';
+  const theme = isDarkMode ? colors.dark : colors.light;
 
   const copyToken = useCallback(() => {
     if (state.voipToken) {
@@ -91,48 +123,71 @@ export default function HomeScreen() {
   }, [showToast]);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['top', 'bottom']}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
       >
-        <Text style={styles.title}>CallKit Example</Text>
+        <Text style={[styles.title, { color: theme.text }]}>
+          CallKit Example
+        </Text>
 
         {/* Section 1: States */}
-        <SectionHeader title="States" />
-        <View style={styles.section}>
+        <SectionHeader title="States" color={theme.sectionHeader} />
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: theme.section, borderColor: theme.separator },
+          ]}
+        >
           <StateRow
             color={roomStateColor(state.roomConnectionState)}
             label="Room state"
             value={roomStateLabel(state.roomConnectionState)}
+            theme={theme}
           />
-          <Separator />
+          <Separator color={theme.separator} />
           <StateRow
             color={callStateColor(state.callState)}
             label="Call state"
             value={state.callState}
+            theme={theme}
           />
-          <Separator />
+          <Separator color={theme.separator} />
           <StateRow
-            color="#007AFF"
+            color={theme.link}
             label="Call ID"
             value={state.activeCallUUID ?? 'Not in a call'}
+            theme={theme}
             monospaced
           />
-          <Separator />
+          <Separator color={theme.separator} />
           <StateRow
-            color={state.callerName ? '#5856D6' : '#8E8E93'}
+            color={state.callerName ? theme.caller : theme.secondaryText}
             label="Caller"
             value={state.callerName ?? 'No caller'}
+            theme={theme}
           />
         </View>
 
         {/* Section 2: Room for Testing */}
-        <SectionHeader title="1. Room for testing" />
-        <View style={styles.section}>
+        <SectionHeader
+          title="1. Room for testing"
+          color={theme.sectionHeader}
+        />
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: theme.section, borderColor: theme.separator },
+          ]}
+        >
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: theme.text }]}
             placeholder="URL"
+            placeholderTextColor={theme.secondaryText}
             value={state.url}
             onChangeText={text => manager.setUrl(text)}
             autoCapitalize="none"
@@ -142,10 +197,11 @@ export default function HomeScreen() {
               state.roomConnectionState === ConnectionState.Disconnected
             }
           />
-          <Separator />
+          <Separator color={theme.separator} />
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: theme.text }]}
             placeholder="Token"
+            placeholderTextColor={theme.secondaryText}
             value={state.token}
             onChangeText={text => manager.setToken(text)}
             autoCapitalize="none"
@@ -158,31 +214,52 @@ export default function HomeScreen() {
         </View>
 
         {/* Section 3: VoIP Push Token */}
-        <SectionHeader title="3. VoIP Push Token" />
-        <View style={styles.section}>
+        <SectionHeader title="3. VoIP Push Token" color={theme.sectionHeader} />
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: theme.section, borderColor: theme.separator },
+          ]}
+        >
           {state.voipToken ? (
             <TouchableOpacity onPress={copyToken} style={styles.tokenRow}>
-              <Text style={styles.tokenText} numberOfLines={2}>
+              <Text
+                style={[styles.tokenText, { color: theme.text }]}
+                numberOfLines={2}
+              >
                 {state.voipToken}
               </Text>
-              <Text style={styles.copyIcon}>{'Copy'}</Text>
+              <Text style={[styles.copyIcon, { color: theme.link }]}>
+                {'Copy'}
+              </Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.row}>
-              <Text style={styles.grayText}>No VoIP token available</Text>
+              <Text style={[styles.grayText, { color: theme.secondaryText }]}>
+                No VoIP token available
+              </Text>
             </View>
           )}
         </View>
 
         {/* Section 4: Call Controls */}
-        <SectionHeader title="4. Call" />
-        <View style={styles.section}>
+        <SectionHeader title="4. Call" color={theme.sectionHeader} />
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: theme.section, borderColor: theme.separator },
+          ]}
+        >
           {state.hasActiveCall ? (
             <TouchableOpacity
               style={styles.buttonRow}
               onPress={() => manager.endCall()}
             >
-              <Text style={styles.destructiveText}>End call</Text>
+              <Text
+                style={[styles.destructiveText, { color: theme.destructive }]}
+              >
+                End call
+              </Text>
             </TouchableOpacity>
           ) : (
             <>
@@ -190,14 +267,18 @@ export default function HomeScreen() {
                 style={styles.buttonRow}
                 onPress={() => manager.startCall('user1')}
               >
-                <Text style={styles.linkText}>Start call</Text>
+                <Text style={[styles.linkText, { color: theme.link }]}>
+                  Start call
+                </Text>
               </TouchableOpacity>
-              <Separator />
+              <Separator color={theme.separator} />
               <TouchableOpacity
                 style={styles.buttonRow}
                 onPress={() => manager.simulateIncomingCall('Tommie Sunshine')}
               >
-                <Text style={styles.linkText}>Simulate incoming call</Text>
+                <Text style={[styles.linkText, { color: theme.link }]}>
+                  Simulate incoming call
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -206,23 +287,33 @@ export default function HomeScreen() {
 
       {/* Toast */}
       {showToast && (
-        <View style={styles.toast}>
+        <View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: theme.toastBackground,
+              shadowColor: theme.shadow,
+            },
+          ]}
+        >
           <Text style={styles.toastIcon}>{'✓'}</Text>
-          <Text style={styles.toastText}>Token copied to clipboard</Text>
+          <Text style={[styles.toastText, { color: theme.text }]}>
+            Token copied to clipboard
+          </Text>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 // --- Sub-components ---
 
-function SectionHeader({ title }: { title: string }) {
-  return <Text style={styles.sectionHeader}>{title}</Text>;
+function SectionHeader({ title, color }: { title: string; color: string }) {
+  return <Text style={[styles.sectionHeader, { color }]}>{title}</Text>;
 }
 
-function Separator() {
-  return <View style={styles.separator} />;
+function Separator({ color }: { color: string }) {
+  return <View style={[styles.separator, { backgroundColor: color }]} />;
 }
 
 function StateRow({
@@ -230,20 +321,26 @@ function StateRow({
   label,
   value,
   monospaced,
+  theme,
 }: {
   color: string;
   label: string;
   value: string;
   monospaced?: boolean;
+  theme: typeof colors.light;
 }) {
   return (
     <View style={styles.stateRow}>
       <View style={styles.stateRowLeft}>
         <View style={[styles.statusDot, { backgroundColor: color }]} />
-        <Text style={styles.stateLabel}>{label}</Text>
+        <Text style={[styles.stateLabel, { color: theme.text }]}>{label}</Text>
       </View>
       <Text
-        style={[styles.stateValue, monospaced && styles.monospaced]}
+        style={[
+          styles.stateValue,
+          { color: theme.secondaryText },
+          monospaced && styles.monospaced,
+        ]}
         numberOfLines={1}
       >
         {value}
@@ -306,7 +403,6 @@ function callStateColor(state: CallState): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
   },
   scrollView: {
     flex: 1,
@@ -320,26 +416,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 16,
-    color: '#000',
   },
   sectionHeader: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#6D6D72',
     textTransform: 'uppercase',
     marginTop: 24,
     marginBottom: 8,
     marginLeft: 16,
   },
   section: {
-    backgroundColor: '#FFFFFF',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#C6C6C8',
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#C6C6C8',
     marginLeft: 16,
   },
   stateRow: {
@@ -363,11 +454,9 @@ const styles = StyleSheet.create({
   stateLabel: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#000',
   },
   stateValue: {
     fontSize: 13,
-    color: '#8E8E93',
     flexShrink: 1,
     marginLeft: 8,
   },
@@ -378,7 +467,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 17,
-    color: '#000',
     minHeight: 44,
   },
   row: {
@@ -398,16 +486,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontFamily: 'Menlo',
-    color: '#000',
   },
   copyIcon: {
     fontSize: 15,
-    color: '#007AFF',
     marginLeft: 8,
   },
   grayText: {
     fontSize: 17,
-    color: '#8E8E93',
   },
   buttonRow: {
     paddingHorizontal: 16,
@@ -417,11 +502,9 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 17,
-    color: '#007AFF',
   },
   destructiveText: {
     fontSize: 17,
-    color: '#FF3B30',
   },
   toast: {
     position: 'absolute',
@@ -429,11 +512,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -446,6 +527,5 @@ const styles = StyleSheet.create({
   },
   toastText: {
     fontSize: 15,
-    color: '#000',
   },
 });
