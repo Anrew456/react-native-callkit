@@ -18,6 +18,9 @@ const config = {
     path.resolve(livekitRoot, 'react-native-callkeep'),
   ],
   resolver: {
+    // Local LiveKit SDK checkouts rely on Metro's legacy package fields
+    // (`react-native`, `source`, `main`) instead of package `exports`.
+    unstable_enablePackageExports: false,
     // When Metro processes files from linked packages (e.g. SDK's src/index.tsx),
     // it needs to know where to find their dependencies. This maps all shared
     // dependencies to this app's node_modules so resolution works correctly.
