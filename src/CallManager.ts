@@ -4,11 +4,7 @@ import {
   AudioEngineAvailability,
   AudioSession,
 } from '@livekit/react-native';
-import RNCallKeep, {
-  AudioSessionCategoryOption,
-  AudioSessionMode,
-  CONSTANTS as CK_CONSTANTS,
-} from 'react-native-callkeep';
+import RNCallKeep, { CONSTANTS as CK_CONSTANTS } from 'react-native-callkeep';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CallState } from './types';
@@ -83,13 +79,7 @@ class CallManager {
         maximumCallsPerCallGroup: '1',
         includesCallsInRecents: false,
         audioSession: {
-          categoryOptions:
-            AudioSessionCategoryOption.allowBluetooth |
-            AudioSessionCategoryOption.allowBluetoothA2DP |
-            AudioSessionCategoryOption.allowAirPlay |
-            AudioSessionCategoryOption.defaultToSpeaker,
-          mode: AudioSessionMode.voiceChat,
-          manageAudioSession: false, // SDK's AudioDeviceModule owns the audio session
+          autoConfigure: false, // SDK's AudioDeviceModule owns the audio session
         },
       },
       android: {

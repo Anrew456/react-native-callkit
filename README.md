@@ -7,7 +7,7 @@ React Native example showing CallKit (iOS) and ConnectionService (Android) integ
 - Outgoing calls via `RNCallKeep.startCall`
 - Simulated incoming calls via `RNCallKeep.displayIncomingCall`
 - VoIP push token display (PushKit, iOS only)
-- Audio session managed by LiveKit's `AudioDeviceModule`, not by CallKeep (`manageAudioSession: false`)
+- Audio session managed by LiveKit's `AudioDeviceModule`, not by CallKeep (`autoConfigure: false`)
 - Mute/unmute via CallKit UI
 
 ## Project structure
@@ -75,4 +75,4 @@ npm run android
 
 ## Audio session handling
 
-CallKeep is configured with `manageAudioSession: false` so it does not touch `AVAudioSession`. Instead, when CallKit activates the audio session, the app configures it via `AudioSession.setAppleAudioConfiguration` and then enables the audio engine with `AudioDeviceModule.setEngineAvailability`. This matches the pattern from the [Swift CallKit example](https://github.com/livekit/client-sdk-swift/tree/main/Examples/CallKit).
+CallKeep is configured with `autoConfigure: false` so it does not touch `AVAudioSession`. Instead, when CallKit activates the audio session, the app configures it via `AudioSession.setAppleAudioConfiguration` and then enables the audio engine with `AudioDeviceModule.setEngineAvailability`. This matches the pattern from the [Swift CallKit example](https://github.com/livekit/client-sdk-swift/tree/main/Examples/CallKit).
