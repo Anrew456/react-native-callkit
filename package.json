@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
-    "preios": "cd ../../livekit/client-sdk-react-native && yarn exec bob build --target commonjs && yarn exec bob build --target module",
     "ios": "react-native run-ios",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"App.tsx\" \"index.js\" \"metro.config.js\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"App.tsx\" \"index.js\" \"metro.config.js\"",
@@ -16,10 +15,10 @@
   "dependencies": {
     "react": "19.2.0",
     "react-native": "0.83.1",
-    "@livekit/react-native": "file:../../livekit/client-sdk-react-native",
-    "@livekit/react-native-webrtc": "file:../../livekit/react-native-webrtc",
-    "livekit-client": "file:../../livekit/client-sdk-js",
-    "react-native-callkeep": "file:../../livekit/react-native-callkeep",
+    "@livekit/react-native": "2.11.0-beta.0",
+    "@livekit/react-native-webrtc": "^144.1.0-beta.2",
+    "@livekit/react-native-callkeep": "^4.3.16",
+    "livekit-client": "^2.15.8",
     "@react-native-async-storage/async-storage": "^2.1.0",
     "@react-navigation/native": "^7.0.0",
     "@react-navigation/native-stack": "^7.0.0",

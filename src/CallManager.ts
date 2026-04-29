@@ -4,7 +4,7 @@ import {
   AudioEngineAvailability,
   AudioSession,
 } from '@livekit/react-native';
-import RNCallKeep, { CONSTANTS as CK_CONSTANTS } from 'react-native-callkeep';
+import RNCallKeep, { CONSTANTS as CK_CONSTANTS } from '@livekit/react-native-callkeep';
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CallState } from './types';
