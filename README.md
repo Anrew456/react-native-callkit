@@ -1,6 +1,6 @@
 # LiveKit React-Native CallKit Example
 
-React Native example showing CallKit (iOS) and ConnectionService (Android) integration with LiveKit using [react-native-callkeep](https://github.com/livekit/react-native-callkeep).
+React Native example showing CallKit (iOS) and ConnectionService (Android) integration with LiveKit using [@livekit/react-native-callkeep](https://github.com/livekit/react-native-callkeep).
 
 ## What it does
 
@@ -58,7 +58,7 @@ Then run:
 npm run ios
 ```
 
-> CallKit does not work in the iOS Simulator. Use a physical device.
+> CallKit's native call UI is unavailable in the iOS Simulator. The app builds and Room connections work, but to test incoming/outgoing call flows you need a physical device.
 
 ### Android
 
