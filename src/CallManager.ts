@@ -5,12 +5,16 @@ import {
   AudioSession,
 } from '@livekit/react-native';
 import RNCallKeep, { CONSTANTS as CK_CONSTANTS } from '@livekit/react-native-callkeep';
-import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CallState } from './types';
 
 const STORAGE_KEY_URL = '@callkit_url';
 const STORAGE_KEY_TOKEN = '@callkit_token';
+
+const IncomingCallUI = NativeModules.IncomingCallUI as
+  | { show: (uuid: string, name: string, handle: string | null) => void; hide: (uuid: string) => void }
+  | undefined;
 
 type CallManagerListener = () => void;
 
@@ -21,8 +25,8 @@ class CallManager {
   activeCallUUID: string | null = null;
   callerName: string | null = null;
   callerHandle: string | null = null;
-  url: string = '';
-  token: string = '';
+  url: string = 'wss://testproject-7v6kxfs5.livekit.cloud';
+  token: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUElnUndjWDVWZ2QyZWsiLCJzdWIiOiJhcHAtdXNlciIsIm5hbWUiOiJBcHAgVXNlciIsImp0aSI6ImFwcC11c2VyIiwiaWF0IjoxNzc3ODM1NjEzLCJuYmYiOjE3Nzc4MzU2MTMsImV4cCI6MTc3ODQ0MDQxMywidmlkZW8iOnsicm9vbUpvaW4iOnRydWUsInJvb20iOiJ0ZXN0LXJvb20iLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWUsImNhblB1Ymxpc2hEYXRhIjp0cnVlfX0.bvcjbVy0AfukNHoLhGCO6m0UQNQaaZ1mAGTafYgjzAA';
 
   // LiveKit
   readonly room = new Room();
@@ -56,7 +60,7 @@ class CallManager {
     }
 
     // Setup CallKeep
-    this.setupCallKeep();
+    await this.setupCallKeep();
 
     // Setup PushKit listener (native module events)
     this.setupPushKit();
@@ -70,8 +74,8 @@ class CallManager {
     });
   }
 
-  private setupCallKeep() {
-    RNCallKeep.setSettings({
+  private async setupCallKeep() {
+    await RNCallKeep.setup({
       ios: {
         appName: 'LiveKitCallKit',
         supportsVideo: false,
@@ -89,6 +93,7 @@ class CallManager {
         cancelButton: 'Cancel',
         okButton: 'Ok',
         additionalPermissions: [],
+        selfManaged: true,
         foregroundService: {
           channelId: 'io.livekit.callkit',
           channelName: 'Foreground Service',
@@ -96,6 +101,9 @@ class CallManager {
         },
       },
     });
+    if (Platform.OS === 'android') {
+      RNCallKeep.registerAndroidEvents();
+    }
 
     // Audio session activation/deactivation coordination with the SDK's AudioEngine
     RNCallKeep.addEventListener('didActivateAudioSession', () => {
@@ -129,10 +137,40 @@ class CallManager {
       }
     });
 
+    // Self-managed incoming call: render our own UI (heads-up notification + FSI)
+    RNCallKeep.addEventListener(
+      'showIncomingCallUi',
+      ({ callUUID, handle, name }) => {
+        console.log('[CallManager] showIncomingCallUi:', callUUID, name);
+        this.activeCallUUID = callUUID;
+        this.callerHandle = handle || null;
+        this.callerName = name || null;
+        this.updateCallState('activeIncoming');
+        IncomingCallUI?.show(callUUID, name || handle || 'Incoming call', handle || null);
+      },
+    );
+
+    // Bridge taps on our notification's Answer/Decline back to RNCallKeep
+    if (Platform.OS === 'android') {
+      const emitter = new NativeEventEmitter(NativeModules.IncomingCallUI);
+      emitter.addListener(
+        'IncomingCallAction',
+        ({ action, callUUID }: { action: 'answer' | 'decline'; callUUID: string }) => {
+          console.log('[CallManager] IncomingCallAction:', action, callUUID);
+          if (action === 'answer') {
+            RNCallKeep.answerIncomingCall(callUUID);
+          } else {
+            RNCallKeep.endCall(callUUID);
+          }
+        },
+      );
+    }
+
     // Answer incoming call
     RNCallKeep.addEventListener('answerCall', ({ callUUID }) => {
       console.log('[CallManager] Answer call:', callUUID);
       this.activeCallUUID = callUUID;
+      IncomingCallUI?.hide(callUUID);
       this.connectToRoom()
         .then(() => {
           this.updateCallState('connected');
@@ -146,6 +184,7 @@ class CallManager {
     // End call
     RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
       console.log('[CallManager] End call:', callUUID);
+      IncomingCallUI?.hide(callUUID);
       this.disconnectFromRoom().then(() => {
         if (this.callState !== 'errored') {
           this.updateCallState('idle');
@@ -281,6 +320,7 @@ class CallManager {
     RNCallKeep.reportConnectingOutgoingCallWithUUID(uuid);
 
     try {
+      await this.ensureAndroidCallPermissions();
       await this.connectToRoom();
       RNCallKeep.reportConnectedOutgoingCallWithUUID(uuid);
       this.updateCallState('connected');
@@ -323,6 +363,21 @@ class CallManager {
   }
 
   // --- Room control ---
+
+  private async ensureAndroidCallPermissions() {
+    if (Platform.OS !== 'android') return;
+    const required = [
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    ].filter(Boolean);
+
+    const result = await PermissionsAndroid.requestMultiple(required);
+    const mic = result[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+    if (mic !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error('Microphone permission denied');
+    }
+  }
 
   private async connectToRoom() {
     console.log('[CallManager] Connecting to room:', this.url);

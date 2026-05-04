@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
       android:name=".MainApplication"
@@ -23,5 +30,25 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+
+      <receiver
+        android:name=".incomingcall.IncomingCallActionReceiver"
+        android:exported="false">
+        <intent-filter>
+            <action android:name="com.livekitcallkitexample.incomingcall.ANSWER" />
+            <action android:name="com.livekitcallkitexample.incomingcall.DECLINE" />
+        </intent-filter>
+      </receiver>
+
+      <service
+        android:name="io.wazo.callkeep.VoiceConnectionService"
+        android:label="@string/app_name"
+        android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+        android:foregroundServiceType="phoneCall|microphone"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.telecom.ConnectionService" />
+        </intent-filter>
+      </service>
     </application>
 </manifest>
