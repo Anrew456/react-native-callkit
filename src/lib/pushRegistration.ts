@@ -152,6 +152,21 @@ export function endCallKeepSession(callUUID: string | undefined) {
   }
 }
 
+// Called by WaitingScreen when the operator accepts or rejects an incoming
+// request from the in-app UI (not from the notification buttons). Without
+// this, the Android notification stays visible and the ringtone keeps playing
+// because the notification was created with setOngoing(true).
+export function dismissIncomingByRequestId(requestId: number) {
+  for (const [uuid, payload] of pendingByUuid.entries()) {
+    if (payload.request_id === requestId) {
+      if (Platform.OS === 'ios') RNCallKeep.endCall(uuid);
+      else IncomingCallUI?.hide(uuid);
+      pendingByUuid.delete(uuid);
+      AsyncStorage.removeItem(`pending_call_${uuid}`).catch(() => {});
+    }
+  }
+}
+
 // ---------- Android: custom IncomingCallAction receiver ---------------------
 
 function bindAndroidIncomingListeners() {

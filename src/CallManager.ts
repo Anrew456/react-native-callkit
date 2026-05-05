@@ -268,13 +268,13 @@ class CallManager {
   }
 
   async endCall() {
-    if (!this.activeCallUUID) return;
-
     const uuid = this.activeCallUUID;
-    if (Platform.OS === 'ios') {
-      RNCallKeep.endCall(uuid);
-    } else {
-      IncomingCallUI?.hide(uuid);
+    if (uuid) {
+      if (Platform.OS === 'ios') {
+        RNCallKeep.endCall(uuid);
+      } else {
+        IncomingCallUI?.hide(uuid);
+      }
     }
     await this.disconnectFromRoom();
     this.activeCallUUID = null;

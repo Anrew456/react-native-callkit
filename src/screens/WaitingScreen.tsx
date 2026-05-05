@@ -8,7 +8,7 @@ import { useSession } from '../lib/session';
 import { useIncomingHandoffs } from '../hooks/useIncomingHandoffs';
 import { useOperatorBusy } from '../hooks/useOperatorBusy';
 import { claimHandoff, rejectHandoff } from '../lib/edgeFunctions';
-import { handleIncomingCallPayload } from '../lib/pushRegistration';
+import { handleIncomingCallPayload, dismissIncomingByRequestId } from '../lib/pushRegistration';
 import { IncomingCallCard } from '../components/IncomingCallCard';
 import type { HandoffRequest } from '../types';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -53,6 +53,9 @@ export function WaitingScreen() {
     if (state.kind !== 'incoming') return;
     const request = state.request;
     setIsBusy(true);
+    // Dismiss Android notification before awaiting the edge function so the
+    // ringtone stops immediately on tap, not after the network round-trip.
+    dismissIncomingByRequestId(request.id);
     const res = await claimHandoff(request.id, session);
     if (!res.ok) {
       setIsBusy(false);
@@ -67,6 +70,8 @@ export function WaitingScreen() {
   async function handleReject() {
     if (state.kind !== 'incoming') return;
     const request = state.request;
+    // Dismiss notification immediately so the ringtone stops.
+    dismissIncomingByRequestId(request.id);
     const res = await rejectHandoff(request.id, session);
     if (!res.ok && __DEV__) {
       console.warn('reject_handoff non-OK (probably already taken/expired)', res.error);

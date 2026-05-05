@@ -19,6 +19,18 @@ class IncomingCallActionReceiver : BroadcastReceiver() {
 
     NotificationManagerCompat.from(context).cancel(uuid.hashCode())
 
+    // On answer, bring the app to the foreground so the JS navigation can
+    // render InCallScreen. Without this, navigateToInCall() runs in the
+    // background JS context and the user never sees the call screen until
+    // they manually open the app.
+    if (action == "answer") {
+      val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+      if (launchIntent != null) {
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        context.startActivity(launchIntent)
+      }
+    }
+
     val app = context.applicationContext as? ReactApplication ?: return
     val reactContext = app.reactHost?.currentReactContext ?: return
     val params = Arguments.createMap().apply {
