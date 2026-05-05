@@ -26,7 +26,7 @@ class CallManager {
   callerName: string | null = null;
   callerHandle: string | null = null;
   url: string = 'wss://testproject-7v6kxfs5.livekit.cloud';
-  token: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUElnUndjWDVWZ2QyZWsiLCJzdWIiOiJhcHAtdXNlciIsIm5hbWUiOiJBcHAgVXNlciIsImp0aSI6ImFwcC11c2VyIiwiaWF0IjoxNzc3ODM1NjEzLCJuYmYiOjE3Nzc4MzU2MTMsImV4cCI6MTc3ODQ0MDQxMywidmlkZW8iOnsicm9vbUpvaW4iOnRydWUsInJvb20iOiJ0ZXN0LXJvb20iLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWUsImNhblB1Ymxpc2hEYXRhIjp0cnVlfX0.bvcjbVy0AfukNHoLhGCO6m0UQNQaaZ1mAGTafYgjzAA';
+  token: string = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUElnUndjWDVWZ2QyZWsiLCJzdWIiOiJhcHAtdXNlciIsIm5hbWUiOiJBcHAgVXNlciIsImp0aSI6ImFwcC11c2VyIiwiaWF0IjoxNzc3OTcxMzA3LCJuYmYiOjE3Nzc5NzEzMDcsImV4cCI6MTc3ODU3NjEwNywidmlkZW8iOnsicm9vbUpvaW4iOnRydWUsInJvb20iOiJ0ZXN0LXJvb20iLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWUsImNhblB1Ymxpc2hEYXRhIjp0cnVlfX0.yWiX8KwZ5qynxWv5b5hNW36CBExJtm849a09oUERYEU';
 
   // LiveKit
   readonly room = new Room();
@@ -55,7 +55,7 @@ class CallManager {
           AudioEngineAvailability.none,
         );
       } catch (e) {
-        console.error('Failed to set engine availability:', e);
+        if (__DEV__) console.error('Failed to set engine availability:', e);
       }
     }
 
@@ -98,6 +98,7 @@ class CallManager {
           channelId: 'io.livekit.callkit',
           channelName: 'Foreground Service',
           notificationTitle: 'LiveKit CallKit Example is running',
+          notificationIcon: 'ic_launcher',
         },
       },
     });
@@ -107,7 +108,7 @@ class CallManager {
 
     // Audio session activation/deactivation coordination with the SDK's AudioEngine
     RNCallKeep.addEventListener('didActivateAudioSession', () => {
-      console.log('[CallManager] Audio session activated');
+      if (__DEV__) console.log('[CallManager] Audio session activated');
       if (Platform.OS === 'ios') {
         AudioSession.setAppleAudioConfiguration({
           audioCategory: 'playAndRecord',
@@ -124,16 +125,16 @@ class CallManager {
               AudioEngineAvailability.default,
             ),
           )
-          .catch(e => console.error('Failed to configure audio session:', e));
+          .catch(e => { if (__DEV__) console.error('Failed to configure audio session:', e); });
       }
     });
 
     RNCallKeep.addEventListener('didDeactivateAudioSession', () => {
-      console.log('[CallManager] Audio session deactivated');
+      if (__DEV__) console.log('[CallManager] Audio session deactivated');
       if (Platform.OS === 'ios') {
         AudioDeviceModule.setEngineAvailability(
           AudioEngineAvailability.none,
-        ).catch(e => console.error('Failed to set engine availability:', e));
+        ).catch(e => { if (__DEV__) console.error('Failed to set engine availability:', e); });
       }
     });
 
@@ -141,7 +142,7 @@ class CallManager {
     RNCallKeep.addEventListener(
       'showIncomingCallUi',
       ({ callUUID, handle, name }) => {
-        console.log('[CallManager] showIncomingCallUi:', callUUID, name);
+        if (__DEV__) console.log('[CallManager] showIncomingCallUi:', callUUID, name);
         this.activeCallUUID = callUUID;
         this.callerHandle = handle || null;
         this.callerName = name || null;
@@ -150,17 +151,29 @@ class CallManager {
       },
     );
 
-    // Bridge taps on our notification's Answer/Decline back to RNCallKeep
+    // Bridge taps on our notification's Answer/Decline directly — Android does not
+    // use the Telecom framework (VoiceConnectionService) for incoming calls, so we
+    // bypass answerIncomingCall/endCall and manage state ourselves.
     if (Platform.OS === 'android') {
       const emitter = new NativeEventEmitter(NativeModules.IncomingCallUI);
       emitter.addListener(
         'IncomingCallAction',
         ({ action, callUUID }: { action: 'answer' | 'decline'; callUUID: string }) => {
-          console.log('[CallManager] IncomingCallAction:', action, callUUID);
+          if (__DEV__) console.log('[CallManager] IncomingCallAction:', action, callUUID);
+          IncomingCallUI?.hide(callUUID);
           if (action === 'answer') {
-            RNCallKeep.answerIncomingCall(callUUID);
+            this.activeCallUUID = callUUID;
+            this.connectToRoom()
+              .then(() => this.updateCallState('connected'))
+              .catch(e => {
+                if (__DEV__) console.error('Failed to connect on answer:', e);
+                this.updateCallState('errored');
+              });
           } else {
-            RNCallKeep.endCall(callUUID);
+            this.activeCallUUID = null;
+            this.callerName = null;
+            this.callerHandle = null;
+            this.updateCallState('idle');
           }
         },
       );
@@ -168,7 +181,7 @@ class CallManager {
 
     // Answer incoming call
     RNCallKeep.addEventListener('answerCall', ({ callUUID }) => {
-      console.log('[CallManager] Answer call:', callUUID);
+      if (__DEV__) console.log('[CallManager] Answer call:', callUUID);
       this.activeCallUUID = callUUID;
       IncomingCallUI?.hide(callUUID);
       this.connectToRoom()
@@ -176,14 +189,14 @@ class CallManager {
           this.updateCallState('connected');
         })
         .catch(e => {
-          console.error('Failed to connect to room:', e);
+          if (__DEV__) console.error('Failed to connect to room:', e);
           this.updateCallState('errored');
         });
     });
 
     // End call
     RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
-      console.log('[CallManager] End call:', callUUID);
+      if (__DEV__) console.log('[CallManager] End call:', callUUID);
       IncomingCallUI?.hide(callUUID);
       this.disconnectFromRoom().then(() => {
         if (this.callState !== 'errored') {
@@ -200,7 +213,7 @@ class CallManager {
     RNCallKeep.addEventListener(
       'didReceiveStartCallAction',
       ({ callUUID, handle }) => {
-        console.log('[CallManager] Start call action:', callUUID, handle);
+        if (__DEV__) console.log('[CallManager] Start call action:', callUUID, handle);
       },
     );
 
@@ -208,10 +221,10 @@ class CallManager {
     RNCallKeep.addEventListener(
       'didPerformSetMutedCallAction',
       ({ muted, callUUID }) => {
-        console.log('[CallManager] Mute:', muted, callUUID);
+        if (__DEV__) console.log('[CallManager] Mute:', muted, callUUID);
         this.room.localParticipant
           ?.setMicrophoneEnabled(!muted)
-          .catch(e => console.error('Failed to set microphone:', e));
+          .catch(e => { if (__DEV__) console.error('Failed to set microphone:', e); });
       },
     );
 
@@ -220,11 +233,11 @@ class CallManager {
       'didDisplayIncomingCall',
       ({ error, callUUID, handle, localizedCallerName }) => {
         if (error) {
-          console.error('[CallManager] Display incoming call error:', error);
+          if (__DEV__) console.error('[CallManager] Display incoming call error:', error);
           this.updateCallState('errored');
           return;
         }
-        console.log('[CallManager] Incoming call displayed:', callUUID);
+        if (__DEV__) console.log('[CallManager] Incoming call displayed:', callUUID);
         this.activeCallUUID = callUUID;
         this.callerHandle = handle || null;
         this.callerName = localizedCallerName || null;
@@ -234,7 +247,7 @@ class CallManager {
 
     // Provider reset
     RNCallKeep.addEventListener('didResetProvider', () => {
-      console.log('[CallManager] Provider reset');
+      if (__DEV__) console.log('[CallManager] Provider reset');
       this.activeCallUUID = null;
       this.callerName = null;
       this.callerHandle = null;
@@ -242,7 +255,7 @@ class CallManager {
     });
 
     // Audio route changes
-    RNCallKeep.addEventListener('didChangeAudioRoute', () => {});
+    RNCallKeep.addEventListener('didChangeAudioRoute', () => { });
   }
 
   private setupPushKit() {
@@ -252,20 +265,20 @@ class CallManager {
 
     const { PushKitManager } = NativeModules;
     if (!PushKitManager) {
-      console.warn('[CallManager] PushKitManager native module not found');
+      if (__DEV__) console.warn('[CallManager] PushKitManager native module not found');
       return;
     }
 
     const emitter = new NativeEventEmitter(PushKitManager);
 
     emitter.addListener('voipTokenUpdated', ({ token }: { token: string }) => {
-      console.log('[CallManager] VoIP token updated:', token);
+      if (__DEV__) console.log('[CallManager] VoIP token updated:', token);
       this.voipToken = token;
       this.notifyListeners();
     });
 
     emitter.addListener('voipTokenInvalidated', () => {
-      console.log('[CallManager] VoIP token invalidated');
+      if (__DEV__) console.log('[CallManager] VoIP token invalidated');
       this.voipToken = null;
       this.notifyListeners();
     });
@@ -281,7 +294,7 @@ class CallManager {
       if (token) this.token = token;
       this.notifyListeners();
     } catch (e) {
-      console.error('Failed to load persisted values:', e);
+      if (__DEV__) console.error('Failed to load persisted values:', e);
     }
   }
 
@@ -311,28 +324,44 @@ class CallManager {
     this.notifyListeners();
   }
 
+  async requestOnboardingPermissions() {
+    if (Platform.OS !== 'android') return;
+    await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+    ]);
+  }
+
   async startCall(handle: string) {
-    const uuid = generateUUID();
+    const uuid = crypto.randomUUID();
     this.activeCallUUID = uuid;
     this.updateCallState('activeOutgoing');
 
-    RNCallKeep.startCall(uuid, handle, 'LiveKit Call', 'generic', false);
-    RNCallKeep.reportConnectingOutgoingCallWithUUID(uuid);
-
-    try {
-      await this.ensureAndroidCallPermissions();
-      await this.connectToRoom();
-      RNCallKeep.reportConnectedOutgoingCallWithUUID(uuid);
-      this.updateCallState('connected');
-    } catch (e) {
-      console.error('Failed to start call:', e);
-      RNCallKeep.reportEndCallWithUUID(
-        uuid,
-        CK_CONSTANTS.END_CALL_REASONS.FAILED,
-      );
-      this.updateCallState('errored');
-      this.activeCallUUID = null;
-      this.notifyListeners();
+    if (Platform.OS === 'android') {
+      try {
+        await this.ensureAndroidCallPermissions();
+        await this.connectToRoom();
+        this.updateCallState('connected');
+      } catch (e) {
+        if (__DEV__) console.error('Failed to start call:', e);
+        this.updateCallState('errored');
+        this.activeCallUUID = null;
+        this.notifyListeners();
+      }
+    } else {
+      RNCallKeep.startCall(uuid, handle, 'LiveKit Call', 'generic', false);
+      RNCallKeep.reportConnectingOutgoingCallWithUUID(uuid);
+      try {
+        await this.connectToRoom();
+        RNCallKeep.reportConnectedOutgoingCallWithUUID(uuid);
+        this.updateCallState('connected');
+      } catch (e) {
+        if (__DEV__) console.error('Failed to start call:', e);
+        RNCallKeep.reportEndCallWithUUID(uuid, CK_CONSTANTS.END_CALL_REASONS.FAILED);
+        this.updateCallState('errored');
+        this.activeCallUUID = null;
+        this.notifyListeners();
+      }
     }
   }
 
@@ -340,7 +369,9 @@ class CallManager {
     if (!this.activeCallUUID) return;
 
     const uuid = this.activeCallUUID;
-    RNCallKeep.endCall(uuid);
+    if (Platform.OS === 'ios') {
+      RNCallKeep.endCall(uuid);
+    }
     await this.disconnectFromRoom();
     this.activeCallUUID = null;
     this.callerName = null;
@@ -352,14 +383,16 @@ class CallManager {
   }
 
   simulateIncomingCall(callerName: string) {
-    const uuid = generateUUID();
-    RNCallKeep.displayIncomingCall(
-      uuid,
-      'incoming-user',
-      callerName,
-      'generic',
-      false,
-    );
+    const uuid = crypto.randomUUID();
+    if (Platform.OS === 'android') {
+      this.activeCallUUID = uuid;
+      this.callerName = callerName;
+      this.callerHandle = null;
+      this.updateCallState('activeIncoming');
+      IncomingCallUI?.show(uuid, callerName, null);
+    } else {
+      RNCallKeep.displayIncomingCall(uuid, 'incoming-user', callerName, 'generic', false);
+    }
   }
 
   // --- Room control ---
@@ -380,15 +413,15 @@ class CallManager {
   }
 
   private async connectToRoom() {
-    console.log('[CallManager] Connecting to room:', this.url);
+    if (__DEV__) console.log('[CallManager] Connecting to room:', this.url);
     await this.room.connect(this.url, this.token);
     await this.room.localParticipant.setMicrophoneEnabled(true);
-    console.log('[CallManager] Connected to room');
+    if (__DEV__) console.log('[CallManager] Connected to room');
     this.notifyListeners();
   }
 
   private async disconnectFromRoom() {
-    console.log('[CallManager] Disconnecting from room');
+    if (__DEV__) console.log('[CallManager] Disconnecting from room');
     await this.room.disconnect();
     this.notifyListeners();
   }
@@ -410,14 +443,6 @@ class CallManager {
   private notifyListeners() {
     this.listeners.forEach(listener => listener());
   }
-}
-
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 export default CallManager;
