@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1081117511542",
+    "project_id": "talky-mobile",
+    "storage_bucket": "talky-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081117511542:android:0cf0861bcece733282f457",
+        "android_client_info": {
+          "package_name": "com.livekitcallkitexample"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB94Xd-a_5roYGjve1xkGnRz5TKwDLhawU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081117511542:android:08c1a7daaaf1d4a382f457",
+        "android_client_info": {
+          "package_name": "com.talkyoperator.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB94Xd-a_5roYGjve1xkGnRz5TKwDLhawU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
