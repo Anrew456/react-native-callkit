@@ -29,7 +29,12 @@ let androidIncomingListenersBound = false;
 let registeredUserId: string | null = null;
 
 const IncomingCallUI = NativeModules.IncomingCallUI as
-  | { show: (uuid: string, name: string, handle: string | null) => void; hide: (uuid: string) => void }
+  | {
+      show: (uuid: string, name: string, handle: string | null, requestId: number) => void;
+      hide: (uuid: string) => void;
+      saveAuthToken: (token: string) => void;
+      consumePendingAction: () => Promise<string | null>;
+    }
   | undefined;
 
 // Single entry point. Called from RootNavigator when the user authenticates.
@@ -109,6 +114,16 @@ export async function handleFcmMessage(msg: FirebaseMessagingTypes.RemoteMessage
     if (!Number.isNaN(t) && t <= Date.now()) return;
   }
 
+  // Always persist the current JWT so the native Android decline handler can
+  // call reject_handoff without opening the app. This runs in the headless JS
+  // context (fired for every push), so the token is always fresh at call-time.
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      IncomingCallUI?.saveAuthToken(session.access_token);
+    }
+  } catch { /* best-effort */ }
+
   handleIncomingCallPayload({
     request_id: requestId,
     caller_number_masked:
@@ -135,7 +150,7 @@ export function handleIncomingCallPayload(payload: IncomingCallPayload) {
 
   if (Platform.OS === 'android') {
     // Custom notification UI (bypasses Android Telecom / VoiceConnectionService)
-    IncomingCallUI?.show(callUuid, callerLabel, null);
+    IncomingCallUI?.show(callUuid, callerLabel, null, payload.request_id);
   } else {
     // iOS: show native CallKit incoming-call screen
     RNCallKeep.displayIncomingCall(callUuid, callerLabel, 'Talky', 'number', false);
@@ -179,6 +194,11 @@ function bindAndroidIncomingListeners() {
     'IncomingCallAction',
     async ({ action, callUUID }: { action: 'answer' | 'decline'; callUUID: string }) => {
       if (__DEV__) console.log('[pushRegistration] IncomingCallAction:', action, callUUID);
+      // Clear SharedPreferences immediately so drainPendingAndroidAction() (called
+      // on cold-start) won't double-process the same action if both paths race.
+      (NativeModules.IncomingCallUI as { consumePendingAction?: () => Promise<unknown> } | undefined)
+        ?.consumePendingAction?.()
+        ?.catch(() => {});
       IncomingCallUI?.hide(callUUID);
 
       if (action === 'answer') {
@@ -188,6 +208,33 @@ function bindAndroidIncomingListeners() {
       }
     },
   );
+
+  // Drain any action persisted by IncomingCallActionReceiver while JS was not
+  // yet running (app killed). Must run after the listener is bound so that any
+  // concurrent live event doesn't double-process the same action.
+  drainPendingAndroidAction();
+}
+
+async function drainPendingAndroidAction() {
+  const module = NativeModules.IncomingCallUI as
+    | { consumePendingAction: () => Promise<string | null> }
+    | undefined;
+  if (!module?.consumePendingAction) return;
+  try {
+    const json = await module.consumePendingAction();
+    if (!json) return;
+    const { action, callUUID, timestamp } = JSON.parse(json) as {
+      action: string;
+      callUUID: string;
+      timestamp: number;
+    };
+    if (Date.now() - timestamp > 30_000) return; // stale — call likely expired
+    if (__DEV__) console.log('[pushRegistration] draining pending action:', action, callUUID);
+    if (action === 'answer') await handleAnswer(callUUID);
+    else await handleDecline(callUUID);
+  } catch (e) {
+    if (__DEV__) console.warn('[pushRegistration] drainPendingAndroidAction error', e);
+  }
 }
 
 // ---------- iOS: CallKit answer / decline via RNCallKeep -------------------
@@ -213,6 +260,10 @@ function bindCallKeepListeners() {
 // ---------- Shared answer / decline logic -----------------------------------
 
 async function handleAnswer(callUUID: string) {
+  // Ensure notification and ringtone are always dismissed, even when the
+  // native receiver ran in a different process (no staticRingtone there).
+  if (Platform.OS === 'android') IncomingCallUI?.hide(callUUID);
+
   let entry = pendingByUuid.get(callUUID);
   if (!entry) {
     const stored = await AsyncStorage.getItem(`pending_call_${callUUID}`).catch(() => null);
@@ -268,6 +319,10 @@ async function handleAnswer(callUUID: string) {
 }
 
 async function handleDecline(callUUID: string) {
+  // Ensure notification and ringtone are dismissed even if the receiver ran
+  // in a different process (static fields not set there).
+  if (Platform.OS === 'android') IncomingCallUI?.hide(callUUID);
+
   let entry = pendingByUuid.get(callUUID);
   if (!entry) {
     const stored = await AsyncStorage.getItem(`pending_call_${callUUID}`).catch(() => null);
