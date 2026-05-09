@@ -32,6 +32,7 @@ const IncomingCallUI = NativeModules.IncomingCallUI as
   | {
       show: (uuid: string, name: string, handle: string | null, requestId: number) => void;
       hide: (uuid: string) => void;
+      hideAll: () => void;
       saveAuthToken: (token: string) => void;
       consumePendingAction: () => Promise<string | null>;
     }
@@ -172,13 +173,21 @@ export function endCallKeepSession(callUUID: string | undefined) {
 // this, the Android notification stays visible and the ringtone keeps playing
 // because the notification was created with setOngoing(true).
 export function dismissIncomingByRequestId(requestId: number) {
+  let found = false;
   for (const [uuid, payload] of pendingByUuid.entries()) {
     if (payload.request_id === requestId) {
+      found = true;
       if (Platform.OS === 'ios') RNCallKeep.endCall(uuid);
       else IncomingCallUI?.hide(uuid);
       pendingByUuid.delete(uuid);
       AsyncStorage.removeItem(`pending_call_${uuid}`).catch(() => {});
     }
+  }
+  // When the app was relaunched by fullScreenIntent from a killed state,
+  // pendingByUuid is empty (the headless JS context held the UUID mapping).
+  // Fall back to hideAll() which uses the static lastNotificationId.
+  if (!found && Platform.OS === 'android') {
+    IncomingCallUI?.hideAll();
   }
 }
 

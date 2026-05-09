@@ -106,11 +106,30 @@ class IncomingCallModule(reactContext: ReactApplicationContext) :
         )
         .build()
 
-    NotificationManagerCompat.from(ctx).notify(uuid.hashCode(), notif)
+    lastNotificationId = uuid.hashCode()
+    NotificationManagerCompat.from(ctx).notify(lastNotificationId, notif)
   }
 
   @ReactMethod
   fun hide(uuid: String) {
+    stopAudioAndWakeLock()
+    NotificationManagerCompat.from(reactApplicationContext).cancel(uuid.hashCode())
+  }
+
+  // Stops audio/wake-lock and cancels the last shown notification without
+  // needing the UUID. Used when the JS context was relaunched by fullScreenIntent
+  // and pendingByUuid is empty (the headless context had the UUID mapping).
+  @ReactMethod
+  fun hideAll() {
+    stopAudioAndWakeLock()
+    val id = lastNotificationId
+    if (id != -1) {
+      NotificationManagerCompat.from(reactApplicationContext).cancel(id)
+      lastNotificationId = -1
+    }
+  }
+
+  private fun stopAudioAndWakeLock() {
     staticRingtone?.let { mp ->
       if (mp.isPlaying) mp.stop()
       mp.release()
@@ -118,7 +137,6 @@ class IncomingCallModule(reactContext: ReactApplicationContext) :
     staticRingtone = null
     staticWakeLock?.let { if (it.isHeld) it.release() }
     staticWakeLock = null
-    NotificationManagerCompat.from(reactApplicationContext).cancel(uuid.hashCode())
   }
 
   // Returns and clears any action stored by IncomingCallActionReceiver when
@@ -194,5 +212,8 @@ class IncomingCallModule(reactContext: ReactApplicationContext) :
     // Static so audio/wake-lock survive headless-JS → UI context switch.
     @JvmStatic var staticRingtone: MediaPlayer? = null
     @JvmStatic var staticWakeLock: PowerManager.WakeLock? = null
+    // Tracks the last notification ID so hideAll() can cancel it without
+    // needing the UUID (used when the JS context was relaunched by fullScreenIntent).
+    @JvmStatic var lastNotificationId: Int = -1
   }
 }
