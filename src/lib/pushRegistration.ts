@@ -35,6 +35,8 @@ const IncomingCallUI = NativeModules.IncomingCallUI as
       hideAll: () => void;
       saveAuthToken: (token: string) => void;
       consumePendingAction: () => Promise<string | null>;
+      checkFullScreenIntentPermission: () => Promise<boolean>;
+      requestBatteryOptimizationExemption: () => Promise<boolean>;
     }
   | undefined;
 
@@ -355,5 +357,12 @@ async function requestAndroidPermissions() {
   await PermissionsAndroid.requestMultiple([
     PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
     PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
   ]);
+  // Android 14+: USE_FULL_SCREEN_INTENT requires explicit user grant; without it
+  // the incoming call won't appear over the lock screen.
+  await IncomingCallUI?.checkFullScreenIntentPermission();
+  // OEM battery optimization (Samsung, Xiaomi, Oppo, etc.) can block FCM
+  // delivery when the app is in background. Request exemption via system dialog.
+  await IncomingCallUI?.requestBatteryOptimizationExemption();
 }

@@ -8,8 +8,10 @@ import android.content.Intent
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.facebook.react.bridge.Promise
@@ -147,6 +149,46 @@ class IncomingCallModule(reactContext: ReactApplicationContext) :
     val json = prefs.getString(PREFS_KEY_PENDING_ACTION, null)
     if (json != null) prefs.edit().remove(PREFS_KEY_PENDING_ACTION).apply()
     promise.resolve(json)
+  }
+
+  // Android 14+ (API 34) requires USE_FULL_SCREEN_INTENT to be explicitly granted
+  // by the user. If not granted, the incoming call notification won't appear over
+  // the lock screen — it will only show in the notification shade.
+  @ReactMethod
+  fun checkFullScreenIntentPermission(promise: Promise) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      promise.resolve(true)
+      return
+    }
+    val nm = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (nm.canUseFullScreenIntent()) {
+      promise.resolve(true)
+      return
+    }
+    val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+      data = Uri.parse("package:${reactApplicationContext.packageName}")
+      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    reactApplicationContext.startActivity(intent)
+    promise.resolve(false)
+  }
+
+  // Requests exemption from battery optimization so FCM messages are delivered
+  // reliably on OEM devices (Samsung, Xiaomi, Oppo, etc.) with aggressive
+  // background-process killing. Shows a direct system dialog for this app only.
+  @ReactMethod
+  fun requestBatteryOptimizationExemption(promise: Promise) {
+    val pm = reactApplicationContext.getSystemService(Context.POWER_SERVICE) as PowerManager
+    if (pm.isIgnoringBatteryOptimizations(reactApplicationContext.packageName)) {
+      promise.resolve(true)
+      return
+    }
+    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+      data = Uri.parse("package:${reactApplicationContext.packageName}")
+      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    reactApplicationContext.startActivity(intent)
+    promise.resolve(false)
   }
 
   @ReactMethod
