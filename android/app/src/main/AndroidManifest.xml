@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -34,14 +35,11 @@
         </intent-filter>
       </activity>
 
-      <receiver
-        android:name=".incomingcall.IncomingCallActionReceiver"
-        android:exported="false">
-        <intent-filter>
-            <action android:name="com.livekitcallkitexample.incomingcall.ANSWER" />
-            <action android:name="com.livekitcallkitexample.incomingcall.DECLINE" />
-        </intent-filter>
-      </receiver>
+      <service
+        android:name=".KeepAliveService"
+        android:foregroundServiceType="remoteMessaging"
+        android:stopWithTask="false"
+        android:exported="false" />
 
       <service
         android:name="io.wazo.callkeep.VoiceConnectionService"
