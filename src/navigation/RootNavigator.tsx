@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, NativeModules, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, NativeModules, StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -34,16 +34,14 @@ export function RootNavigator() {
 
   useEffect(() => {
     if (session) {
-      // Persist JWT so the native Android decline handler can call reject_handoff
-      // without opening the app.
-      if (Platform.OS === 'android') {
-        (NativeModules.IncomingCallUI as { saveAuthToken?: (t: string) => void } | undefined)
-          ?.saveAuthToken?.(session.access_token);
-      }
       setupPush(session.user.id).catch((err) => {
         if (__DEV__) console.warn('setupPush failed', err);
       });
+      (NativeModules.IncomingCallUI as { startKeepAlive?: () => void } | undefined)
+        ?.startKeepAlive?.();
     } else {
+      (NativeModules.IncomingCallUI as { stopKeepAlive?: () => void } | undefined)
+        ?.stopKeepAlive?.();
       teardownPushOnLogout();
     }
   }, [session]);

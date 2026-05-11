@@ -1,4 +1,4 @@
-import { AppState, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
+import { AppState, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging, { type FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import RNCallKeep from '@livekit/react-native-callkeep';
@@ -25,7 +25,6 @@ const inCallUuids = new Set<string>();
 let voipListenersBound = false;
 let fcmListenersBound = false;
 let callkeepListenersBound = false;
-let androidIncomingListenersBound = false;
 let registeredUserId: string | null = null;
 
 const IncomingCallUI = NativeModules.IncomingCallUI as
@@ -33,10 +32,10 @@ const IncomingCallUI = NativeModules.IncomingCallUI as
       show: (uuid: string, name: string, handle: string | null, requestId: number) => void;
       hide: (uuid: string) => void;
       hideAll: () => void;
-      saveAuthToken: (token: string) => void;
-      consumePendingAction: () => Promise<string | null>;
       checkFullScreenIntentPermission: () => Promise<boolean>;
       requestBatteryOptimizationExemption: () => Promise<boolean>;
+      startKeepAlive: () => void;
+      stopKeepAlive: () => void;
     }
   | undefined;
 
@@ -53,7 +52,6 @@ export async function setupPush(userId: string) {
   if (Platform.OS === 'android') {
     await requestAndroidPermissions();
     await setupFcmAndroid(userId);
-    bindAndroidIncomingListeners(); // custom notification action receiver
   }
 }
 
@@ -117,15 +115,9 @@ export async function handleFcmMessage(msg: FirebaseMessagingTypes.RemoteMessage
     if (!Number.isNaN(t) && t <= Date.now()) return;
   }
 
-  // Always persist the current JWT so the native Android decline handler can
-  // call reject_handoff without opening the app. This runs in the headless JS
-  // context (fired for every push), so the token is always fresh at call-time.
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      IncomingCallUI?.saveAuthToken(session.access_token);
-    }
-  } catch { /* best-effort */ }
+  // When app is in foreground, Supabase Realtime already delivered the call
+  // and WaitingScreen handles the notification. Skip show() to avoid doubling.
+  if (AppState.currentState === 'active') return;
 
   handleIncomingCallPayload({
     request_id: requestId,
@@ -190,61 +182,6 @@ export function dismissIncomingByRequestId(requestId: number) {
   // Fall back to hideAll() which uses the static lastNotificationId.
   if (!found && Platform.OS === 'android') {
     IncomingCallUI?.hideAll();
-  }
-}
-
-// ---------- Android: custom IncomingCallAction receiver ---------------------
-
-function bindAndroidIncomingListeners() {
-  if (androidIncomingListenersBound) return;
-  if (!NativeModules.IncomingCallUI) return;
-  androidIncomingListenersBound = true;
-
-  const emitter = new NativeEventEmitter(NativeModules.IncomingCallUI);
-  emitter.addListener(
-    'IncomingCallAction',
-    async ({ action, callUUID }: { action: 'answer' | 'decline'; callUUID: string }) => {
-      if (__DEV__) console.log('[pushRegistration] IncomingCallAction:', action, callUUID);
-      // Clear SharedPreferences immediately so drainPendingAndroidAction() (called
-      // on cold-start) won't double-process the same action if both paths race.
-      (NativeModules.IncomingCallUI as { consumePendingAction?: () => Promise<unknown> } | undefined)
-        ?.consumePendingAction?.()
-        ?.catch(() => {});
-      IncomingCallUI?.hide(callUUID);
-
-      if (action === 'answer') {
-        await handleAnswer(callUUID);
-      } else {
-        await handleDecline(callUUID);
-      }
-    },
-  );
-
-  // Drain any action persisted by IncomingCallActionReceiver while JS was not
-  // yet running (app killed). Must run after the listener is bound so that any
-  // concurrent live event doesn't double-process the same action.
-  drainPendingAndroidAction();
-}
-
-async function drainPendingAndroidAction() {
-  const module = NativeModules.IncomingCallUI as
-    | { consumePendingAction: () => Promise<string | null> }
-    | undefined;
-  if (!module?.consumePendingAction) return;
-  try {
-    const json = await module.consumePendingAction();
-    if (!json) return;
-    const { action, callUUID, timestamp } = JSON.parse(json) as {
-      action: string;
-      callUUID: string;
-      timestamp: number;
-    };
-    if (Date.now() - timestamp > 30_000) return; // stale — call likely expired
-    if (__DEV__) console.log('[pushRegistration] draining pending action:', action, callUUID);
-    if (action === 'answer') await handleAnswer(callUUID);
-    else await handleDecline(callUUID);
-  } catch (e) {
-    if (__DEV__) console.warn('[pushRegistration] drainPendingAndroidAction error', e);
   }
 }
 

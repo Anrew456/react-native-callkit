@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -41,6 +41,34 @@ export function WaitingScreen() {
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // Android: drive the ringtone/notification from WaitingScreen state so there
+  // is a single owner in-process. FCM background handler covers the killed-app
+  // case; show() cancels any previous notification so there is no double-ring.
+  const notifUuidRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const ui = NativeModules.IncomingCallUI as
+      | { show: (uuid: string, name: string, handle: string | null, id: number) => void; hideAll: () => void }
+      | undefined;
+    if (!ui) return;
+
+    if (state.kind === 'incoming') {
+      const uuid = crypto.randomUUID();
+      notifUuidRef.current = uuid;
+      ui.show(uuid, state.request.caller_number ?? 'Sconosciuto', null, state.request.id);
+    } else {
+      if (notifUuidRef.current) {
+        ui.hideAll();
+        notifUuidRef.current = null;
+      }
+    }
+    return () => {
+      ui.hideAll();
+      notifUuidRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.kind]);
 
   useFocusEffect(
     useCallback(() => {
